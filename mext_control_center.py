@@ -8,26 +8,26 @@ T2_PERIOD, T2_PULSE = 40000, 10000
 HEX = "FF 10 C3 50 3A 98"  # SET Timer1: period=50000, pulse=15000
 PORT = "/dev/tty.usbmodem21303"
 
-def test_commands(nuc: NucleoUART) -> None:
+test_arr = [
+    "FF 10 00 00 00 00",  # SET  T1
+    "FF 11 00 00 00 00",  # SET  T2
+    "FF 20 00 00 00 00",  # START T1
+    "FF 21 00 00 00 00",  # START T2
+    "FF 30 00 00 00 00",  # STOP  T1
+    "FF 31 00 00 00 00",  # STOP  T2
+    "FF 40 00 00 00 00",  # READBACK T1
+    "FF 41 00 00 00 00",  # READBACK T2
+]
 
-    test_arr = [
-        "FF 10 00 00 00 00",  # SET  T1
-        "FF 11 00 00 00 00",  # SET  T2
-        "FF 20 00 00 00 00",  # START T1
-        "FF 21 00 00 00 00",  # START T2
-        "FF 30 00 00 00 00",  # STOP  T1
-        "FF 31 00 00 00 00",  # STOP  T2
-        "FF 40 00 00 00 00",  # READBACK T1
-        "FF 41 00 00 00 00",  # READBACK T2
-    ]
+def test_commands(nuc: NucleoUART, test_arr) -> None:
 
     for HEX in test_arr:
         # Input-Buffer leeren
         nuc.ser.reset_input_buffer()
 
         # 6-Byte-Frame senden
-        data = bytes.fromhex(HEX)
-        nuc._write_packet(data)          # alternativ: nuc.ser.write(data)
+        data = bytes.fromhex(HEX)        # oder: data = bytearray([0xFF, 0x10, 0xC3, 0x50, 0x3A, 0x98])
+        nuc._write_packet(data)          # 
         nuc.ser.flush()
 
         # Antwort einsammeln (printf-Text oder binär)
@@ -53,7 +53,9 @@ def test_commands(nuc: NucleoUART) -> None:
 def main():
     nuc = NucleoUART(port=PORT, baudrate=115200, timeout=2.0)  # Port ggf. anpassen
     try:
-        test_commands(nuc)
+        test_arr1 = ["FF 10 00 00 00 00"]  # + READBACK T1, T2
+        test_commands(nuc, test_arr1)
+
 
     finally:
         nuc.close()
