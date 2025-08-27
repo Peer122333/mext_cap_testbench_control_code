@@ -17,6 +17,10 @@ class CmdBase(IntEnum):
     READBACK = 0x40  # Timer1: 0x40, Timer2: 0x41
 
 
+
+""" 
+######################## Hilsfunktionen ########################
+"""
 def _code_for_timer(base: CmdBase, timer: int) -> int:
     """Erzeugt den Befehlscode für den gegebenen Timer.
 
@@ -74,7 +78,9 @@ def _msb_lsb_to_u16(msb: int, lsb: int) -> int:
     """
     return ((msb & 0xFF) << 8) | (lsb & 0xFF)
 
-
+def checksum6(frame5: bytes) -> int:
+    """Berechnet die Prüfsumme für ein 6-Byte-Frame (letztes Byte)."""
+    return sum(frame5) & 0xFF
 
 
 
@@ -82,7 +88,7 @@ def _msb_lsb_to_u16(msb: int, lsb: int) -> int:
 class NucleoUART:
     """
     Protokoll: 6 Bytes pro Frame
-      [0]=0xFF, [1]=CMD, [2]=PERIOD_MSB, [3]=PERIOD_LSB, [4]=PULSE_MSB, [5]=PULSE_LSB
+      [0]=0xFF, [1]=CMD, [2]=P0 LSB, [3]=P1 MSB, [4]= FLAGS, [5]= CHKSUM
     """
     def __init__(self, port: str, baudrate: int = 115200, timeout: float = 2):
         self.ser = serial.Serial(
