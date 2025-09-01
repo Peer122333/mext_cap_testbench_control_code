@@ -1,0 +1,214 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import threading
+import time
+
+try:
+    from serial.tools import list_ports
+except Exception:
+    list_ports = None
+
+from nucleo_uart import NucleoUART
+
+class App:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("STM32 UART Control")
+        self.nuc = None
+        self._build_ui()
+        self._set_connected(False)
+
+    def _build_ui(self):
+        pad = {"padx": 6, "pady": 4}
+
+        # Verbindung
+        frm_conn = ttk.LabelFrame(self.root, text="Verbindung")
+        frm_conn.grid(row=0, column=0, sticky="ew", **pad)
+
+        ttk.Label(frm_conn, text="Port:").grid(row=0, column=0, sticky="w")
+        self.cmb_port = ttk.Combobox(frm_conn, width=28, state="readonly")
+        self.cmb_port.grid(row=0, column=1, sticky="ew")
+        ttk.Button(frm_conn, text="↻", width=3, command=self.refresh_ports).grid(row=0, column=2)
+        ttk.Label(frm_conn, text="Baud:").grid(row=0, column=3, sticky="w")
+        self.cmb_baud = ttk.Combobox(frm_conn, width=8, state="readonly",
+                                     values=["115200","230400","460800","921600"])
+        self.cmb_baud.set("115200")
+        self.cmb_baud.grid(row=0, column=4, sticky="w")
+
+        self.btn_connect = ttk.Button(frm_conn, text="Verbinden", command=self.connect)
+        self.btn_disconnect = ttk.Button(frm_conn, text="Trennen", command=self.disconnect)
+        self.btn_connect.grid(row=0, column=5, padx=(12,0))
+        self.btn_disconnect.grid(row=0, column=6)
+
+        # SET
+        frm_set = ttk.LabelFrame(self.root, text="Timer konfigurieren (SET)")
+        frm_set.grid(row=1, column=0, sticky="ew", **pad)
+
+        self.timer_var = tk.IntVar(value=1)
+        ttk.Radiobutton(frm_set, text="Timer 1 (µs)", variable=self.timer_var, value=1).grid(row=0, column=0, sticky="w")
+        ttk.Radiobutton(frm_set, text="Timer 2 (ms)", variable=self.timer_var, value=2).grid(row=0, column=1, sticky="w")
+
+        ttk.Label(frm_set, text="Periode:").grid(row=0, column=2, sticky="e")
+        self.ent_period = ttk.Entry(frm_set, width=10)
+        self.ent_period.insert(0, "200")
+        self.ent_period.grid(row=0, column=3, sticky="w")
+
+        # (Optionales Flags-Feld kann bleiben; SET sendet intern flags=0)
+        ttk.Label(frm_set, text="Flags (ignoriert):").grid(row=0, column=4, sticky="e")
+        self.ent_flags = ttk.Entry(frm_set, width=6)
+        self.ent_flags.insert(0, "0")
+        self.ent_flags.grid(row=0, column=5, sticky="w")
+
+        self.btn_set = ttk.Button(frm_set, text="SET", command=self.on_set)
+        self.btn_set.grid(row=0, column=6, padx=(12,0))
+
+        # Sequenz
+        frm_seq = ttk.LabelFrame(self.root, text="Sequenz")
+        frm_seq.grid(row=2, column=0, sticky="ew", **pad)
+
+        ttk.Label(frm_seq, text="Pulse-Count (0=endlos):").grid(row=0, column=0, sticky="e")
+        self.ent_pulses = ttk.Entry(frm_seq, width=10)
+        self.ent_pulses.insert(0, "0")
+        self.ent_pulses.grid(row=0, column=1, sticky="w")
+
+        self.btn_start = ttk.Button(frm_seq, text="START", command=self.on_start)
+        self.btn_start.grid(row=0, column=2, padx=(12,0))
+
+        # ⬇️ NEU: Dropdown für Soft/Hard Stop
+        ttk.Label(frm_seq, text="Stop-Mode:").grid(row=0, column=3, sticky="e")
+        self.stop_mode = ttk.Combobox(frm_seq, state="readonly", width=8, values=["Soft", "Hard"])
+        self.stop_mode.set("Soft")
+        self.stop_mode.grid(row=0, column=4, sticky="w")
+
+        self.btn_stop  = ttk.Button(frm_seq, text="STOP", command=self.on_stop)
+        self.btn_stop.grid(row=0, column=5)
+
+        # Readback
+        frm_rb = ttk.LabelFrame(self.root, text="Readback")
+        frm_rb.grid(row=3, column=0, sticky="ew", **pad)
+
+        self.btn_rb_t1 = ttk.Button(frm_rb, text="READBACK T1", command=lambda: self.on_readback(1))
+        self.btn_rb_t2 = ttk.Button(frm_rb, text="READBACK T2", command=lambda: self.on_readback(2))
+        self.btn_rb_t1.grid(row=0, column=0, padx=(0,6))
+        self.btn_rb_t2.grid(row=0, column=1, padx=(6,0))
+
+        # Log
+        frm_log = ttk.LabelFrame(self.root, text="Log")
+        frm_log.grid(row=4, column=0, sticky="nsew", **pad)
+
+        self.txt = tk.Text(frm_log, height=14, width=90)
+        self.txt.grid(row=0, column=0, sticky="nsew")
+        self.txt.configure(state="disabled")
+        scroll = ttk.Scrollbar(frm_log, command=self.txt.yview)
+        scroll.grid(row=0, column=1, sticky="ns")
+        self.txt["yscrollcommand"] = scroll.set
+
+        self.root.columnconfigure(0, weight=1)
+        frm_log.rowconfigure(0, weight=1)
+        frm_log.columnconfigure(0, weight=1)
+
+        self.refresh_ports()
+
+    # Helpers, Connect/Disconnect und Actions bleiben unverändert …
+    def _set_connected(self, ok: bool):
+        self.btn_connect.configure(state=("disabled" if ok else "normal"))
+        self.btn_disconnect.configure(state=("normal" if ok else "disabled"))
+        state = "normal" if ok else "disabled"
+        for w in [self.btn_set, self.btn_start, self.btn_stop, self.btn_rb_t1, self.btn_rb_t2]:
+            w.configure(state=state)
+
+    def log(self, msg: str):
+        self.txt.configure(state="normal")
+        self.txt.insert("end", msg + "\n")
+        self.txt.see("end")
+        self.txt.configure(state="disabled")
+
+    def refresh_ports(self):
+        ports = []
+        if list_ports:
+            ports = [p.device for p in list_ports.comports()]
+        if not ports:
+            ports = ["/dev/tty.usbmodem1103", "/dev/tty.usbserial", "/dev/cu.usbmodem", "/dev/cu.usbserial"]
+        self.cmb_port["values"] = ports
+        if ports and not self.cmb_port.get():
+            self.cmb_port.set(ports[0])
+
+    def connect(self):
+        port = self.cmb_port.get().strip()
+        baud = int(self.cmb_baud.get().strip())
+        if not port:
+            messagebox.showwarning("Hinweis", "Bitte zuerst einen Port auswählen.")
+            return
+        try:
+            self.nuc = NucleoUART(port=port, baudrate=baud, timeout=1.0)
+            self._set_connected(True)
+            self.log(f"[OK] Verbunden mit {port} @ {baud} Baud")
+        except Exception as e:
+            messagebox.showerror("Verbindung fehlgeschlagen", str(e))
+            self.log(f"[ERR] {e}")
+
+    def disconnect(self):
+        if self.nuc:
+            try:
+                self.nuc.close()
+            except Exception:
+                pass
+            self.nuc = None
+        self._set_connected(False)
+        self.log("[i] Verbindung getrennt")
+
+    def _in_thread(self, target):
+        threading.Thread(target=target, daemon=True).start()
+
+    def on_set(self):
+        def work():
+            if not self.nuc: return
+            try:
+                timer = self.timer_var.get()
+                period = int(self.ent_period.get())
+                self.log(f"> SET T{timer} period={period} (flags=0)")
+                self.nuc.set_timer(timer, period)  # flags intern 0
+            except Exception as e:
+                self.log(f"[ERR] SET: {e}")
+        self._in_thread(work)
+
+    def on_start(self):
+        def work():
+            if not self.nuc: return
+            try:
+                pulses = int(self.ent_pulses.get())
+                self.log(f"> START sequence pulse_count={pulses}")
+                self.nuc.start_sequence(pulses)
+            except Exception as e:
+                self.log(f"[ERR] START: {e}")
+        self._in_thread(work)
+
+    def on_stop(self):
+        def work():
+            if not self.nuc:
+                return
+            try:
+                mode = self.stop_mode.get()
+                hard = (mode == "Hard")
+                self.log(f"> STOP ({mode})")
+                self.nuc.stop_timer(hard=hard, timer_for_cmd=1)  # 0x30/0x31
+            except Exception as e:
+                self.log(f"[ERR] STOP: {e}")
+        self._in_thread(work)
+
+
+    def on_readback(self, timer: int):
+        def work():
+            if not self.nuc: return
+            try:
+                val = self.nuc.readback(timer)
+                unit = "µs" if timer == 1 else "ms"
+                self.log(f"< READBACK T{timer}: {val} {unit}")
+            except Exception as e:
+                self.log(f"[ERR] READBACK T{timer}: {e}")
+        self._in_thread(work)
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = App(root)
+    root.mainloop()

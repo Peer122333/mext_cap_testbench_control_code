@@ -23,10 +23,14 @@ def u16_to_lsb_msb(val: int) -> tuple[int, int]: # 16-Bit- Zahl in 2 Bytes aufte
 def lsb_msb_to_u16(lsb: int, msb: int) -> int:  # 2 Bytes zu 16-Bit-Zahl zusammensetzen
     return ((msb & 0xFF) << 8) | (lsb & 0xFF)       # MSB und LSB kombinieren
 
+
+
+
+
 class NucleoUART:
     """
-    Frameformat (6 Byte):
-      [0]=0xFF, [1]=CMD, [2]=LSB, [3]=MSB, [4]=FLAGS, [5]=0x00
+    Frameformat (5 Byte):
+      [0]=0xFF, [1]=CMD, [2]=LSB, [3]=MSB, [4]=FLAGS
     """
     def __init__(self, port: str, baudrate: int = 115200, timeout: float = 1.0): # seriellen Port öffnen
         self.ser = serial.Serial(
@@ -39,12 +43,13 @@ class NucleoUART:
             write_timeout=timeout,          # Schreib-Timeout   
         )
 
-    def _build_packet(self, cmd: int, period: int = 0, flags: int = 0) -> bytes: # Frame zusammenbauen
-        lsb, msb = u16_to_lsb_msb(period)                                           # Periode in LSB/MSB aufteilen                  
-        return bytes([PREAMBLE, cmd, lsb, msb, flags & 0xFF])                       # Frame erstellen
+    def _build_packet(self, cmd: int, value: int = 0, flags: int = 0) -> bytes: # Frame zusammenbauen
+        lsb = value & 0xFF
+        msb = (value >> 8) & 0xFF
+        return bytes([PREAMBLE, cmd, lsb, msb, flags & 0xFF])  # nur 5 Bytes
 
     def _write_packet(self, pkt: bytes):            # Frame senden
-        if len(pkt) != 5 or pkt[0] != PREAMBLE:         # Frame muss 5 Byte lang sein und mit PREAMBLE beginnen
+        if len(pkt) != FRAME_SIZE or pkt[0] != PREAMBLE:         # Frame muss 5 Byte lang sein und mit PREAMBLE beginnen
             raise ValueError("invalid packet")          # Fehler bei ungültigem Frame
         self.ser.reset_output_buffer()                  # Output-Puffer leeren
         self.ser.write(pkt)                             # Frame senden      
@@ -58,114 +63,96 @@ class NucleoUART:
                 raise TimeoutError("UART read timeout waiting for preamble")
             if b[0] == PREAMBLE:                    # PREAMBLE gefunden
                 break                               # weitere 5 Bytes lesen       
-        return b + self.ser.read(5)                 # restlichen 4 Bytes lesen        
+        return b + self.ser.read(FRAME_SIZE - 1)                 # restlichen 4 Bytes lesen        
+    
+    def _read_ascii_response(self, timeout: float = 0.5) -> str:
+        end = time.time() + timeout
+        buf = bytearray()
+        while time.time() < end:
+            n = self.ser.in_waiting
+            if n:
+                buf.extend(self.ser.read(n))
+            else:
+                time.sleep(0.01)
+        return buf.decode(errors="replace").strip() if buf else ""
+
+
+
 
     # -------- High-Level API --------
     def set_timer(self, timer: int, period: int, flags: int = 0): # Timer konfigurieren
         cmd = cmd_for_timer(Cmd.SET, timer)                         # Befehlscode für Timer holen       
-        self._write_packet(self._build_packet(cmd, period, flags))  # Frame senden
+        self._write_packet(self._build_packet(cmd, value=period, flags=flags))  # Frame senden
+        resp = self._read_ascii_response()
+        if resp:
+            print("STM32 response:", resp)
+        else:
+            print("No response from STM32")
 
-    def start_timer(self, timer: int):                  # Timer starten
-        cmd = cmd_for_timer(Cmd.START, timer)           # Befehlscode für Timer holen
-        self._write_packet(self._build_packet(cmd))     # Frame senden
+    def start_sequence(self, pulse_count:int):                  # Timer starten
+        """
+        START Sequenz (global): FW liest pulse_count aus value (LSB/MSB).
+        pulse_count=0 -> endlos bis STOP.
+        """
+        cmd = cmd_for_timer(Cmd.START, timer=1)           # Befehlscode für Timer holen
+        self._write_packet(self._build_packet(cmd, value=pulse_count, flags=0))     # Frame senden
+        resp = self._read_ascii_response()
+        if resp:
+            print("STM32 response:", resp)
+        else:
+            print("No response from STM32")
 
-    def stop_timer(self, timer: int):                   # Timer stoppen
+    def stop_timer(self, timer: int, flags):                   # Timer stoppen
+        flags: int = 0
         cmd = cmd_for_timer(Cmd.STOP, timer)            # Befehlscode für Timer holen
-        self._write_packet(self._build_packet(cmd))     # Frame senden
+        self._write_packet(self._build_packet(cmd, value=0, flags=0))     # Frame senden
+        resp = self._read_ascii_response()
+        if resp:
+            print("STM32 response:", resp)
+        else:
+            print("No response from STM32")
+
 
     def readback(self, timer: int) -> int:              # Timer-Periode auslesen
-        cmd = cmd_for_timer(Cmd.READ, timer)            # Befehlscode für Timer holen
-        self._write_packet(self._build_packet(cmd))     # Frame senden
-        pkt = self._read_packet()                       # Antwort-Frame empfangen
-        if pkt[1] != cmd:                               # Antwort prüfen
-            raise ValueError(f"unexpected response: got 0x{pkt[1]:02X}") # Fehler bei falscher Antwort
-        return lsb_msb_to_u16(pkt[2], pkt[3])           # Periode aus Antwort extrahieren
+        cmd = cmd_for_timer(Cmd.READ, timer)        # 0x40 / 0x41
+        self._write_packet(self._build_packet(cmd, value=0, flags=0))
+        pkt = self._read_packet()
+        if pkt[1] != cmd:
+            raise ValueError(f"unexpected response: got 0x{pkt[1]:02X}")
+        return ((pkt[3] & 0xFF) << 8) | (pkt[2] & 0xFF)
 
     def close(self):                                    # Verbindung schließen
         self.ser.close()
 
-    # -------- Testfunktionen --------
-    TEST_FRAMES = [
-        "FF 10 0A 00 00 00",  # SET Timer1, period=10
-        "FF 11 64 00 00 00",  # SET Timer2, period=100
-        "FF 20 00 00 00 00",  # START Sequence
-        "FF 30 00 00 00 00",  # STOP (soft)
-        "FF 40 00 00 00 00",  # READBACK Timer1
-        "FF 41 00 00 00 00",  # READBACK Timer2
-    ]
-
-    # ------------------------
-    # Definiere alle Testfälle
-    # ------------------------
-    tests = [
-        # 1) Happy-Path
-        ("T1 SET 250us",    ("set",  1, 250)),
-        ("T2 SET 5ms",      ("set",  2, 5)),
-        ("START",           ("start",1, 0)),
-        ("READBACK T1",     ("read", 1, 0)),
-        ("READBACK T2",     ("read", 2, 0)),
-        ("STOP (soft)",     ("stop", 1, 0)),
-
-        # 2) Grenzwerte
-        ("T1 SET min 10us", ("set",  1, 10)),
-        ("T1 SET max 1ms",  ("set",  1, 1000)),
-        ("T2 SET min 1ms",  ("set",  2, 1)),
-        ("T2 SET max 10s",  ("set",  2, 10000)),
-
-        # 3) Clamping
-        ("T1 SET 0us",      ("set",  1, 0)),
-        ("T1 SET 2000us",   ("set",  1, 2000)),
-        ("T2 SET 0ms",      ("set",  2, 0)),
-        ("T2 SET 20000ms",  ("set",  2, 20000)),
-    ]
-    tests2 = [
-        # 1) Happy-Path
-        ("T1 SET 250us",    ("set",  1, 250)),
-        ("T2 SET 1s",      ("set",  2, 1000)),
-        ("START",           ("start",1, 0)),
-        ("READBACK T1",     ("read", 1, 0)),
-        ("READBACK T2",     ("read", 2, 0))
-    ]
-
-
-    def run_tests(nuc, tests=tests2):
-        for name, (cmd, timer, val) in tests:
-            print(f"\n>>> {name}")
-            try:
-                if cmd == "set":
-                    nuc.set_timer(timer, val)
-                elif cmd == "start":
-                    nuc.start_timer(timer)
-                elif cmd == "stop":
-                    nuc.stop_timer(timer)
-                elif cmd == "read":
-                    result = nuc.readback(timer)
-                    print(f"READBACK T{timer} -> period={result}")
-                else:
-                    print(f"Unknown cmd {cmd}")
-            except Exception as e:
-                print("Fehler:", e)
-            time.sleep(0.2)  # kleine Pause
-
-    def soft_stop_test(nuc):
-        print("\n>>> Soft-Stop-Test")
-        nuc.set_timer(1, 500)   # 500 µs
-        nuc.set_timer(2, 50)    # 50 ms
-        nuc.start_timer(1)      # START (Timerbit egal)
-        time.sleep(0.05)        # kurz warten
-        nuc.stop_timer(1)       # Soft-Stop anfordern
-        time.sleep(0.5)         # auf all_off() warten
-
-
-raw_tests = [
-    ("T1 SET period=200us", "FF 10 C8 00 00"),  # Timer1 Periode 200 µs
-    ("T1 SET pulse=200us",  "FF 10 C8 00 01"),  # Beispiel: Flags=1 für „Pulse“ (je nach FW-Interpretation)
-    ("T2 SET period=1000ms","FF 11 E8 03 00"),  # Timer2 Periode 1000 ms (1 s)
-    ("START Sequence",      "FF 20 00 00 00"),  # Start
-    ("READBACK T1",         "FF 40 00 00 00"),  # zurücklesen T1
-    ("READBACK T2",         "FF 41 00 00 00"),  # zurücklesen T2
-    ("STOP (soft)",         "FF 30 00 00 00"),  # weiches Stoppen
+   
+api_tests = [
+    # Name,           Funktion,   Args
+    ("T1 SET period=200us",  lambda nuc: nuc.set_timer(1, 200, flags=0)),
+    ("T2 SET period=1000ms", lambda nuc: nuc.set_timer(2, 1000, flags=0)),
+    ("START Sequence",       lambda nuc: nuc.start_sequence(0)),  # 0 = endlos
+    ("READBACK T1",          lambda nuc: print("READBACK T1 ->", nuc.readback(1))),
+    ("READBACK T2",          lambda nuc: print("READBACK T2 ->", nuc.readback(2))),
+    ("READBACK T1",          lambda nuc: print("READBACK T1 ->", nuc.readback(1))),
+    ("READBACK T2",          lambda nuc: print("READBACK T2 ->", nuc.readback(2))),
+    ("READBACK T1",          lambda nuc: print("READBACK T1 ->", nuc.readback(1))),
+    ("READBACK T2",          lambda nuc: print("READBACK T2 ->", nuc.readback(2))),
+    ("READBACK T1",          lambda nuc: print("READBACK T1 ->", nuc.readback(1))),
+    ("READBACK T2",          lambda nuc: print("READBACK T2 ->", nuc.readback(2))),
+    ("READBACK T1",          lambda nuc: print("READBACK T1 ->", nuc.readback(1))),
+    ("READBACK T2",          lambda nuc: print("READBACK T2 ->", nuc.readback(2))),
+    ("READBACK T1",          lambda nuc: print("READBACK T1 ->", nuc.readback(1))),
+    ("READBACK T2",          lambda nuc: print("READBACK T2 ->", nuc.readback(2))),
+    ("STOP (soft)",          lambda nuc: nuc.stop_timer()),
 ]
+
+def run_api_tests(nuc, tests=api_tests, delay=0.2):
+    for name, func in tests:
+        print(f"\n>>> {name}")
+        try:
+            func(nuc)
+        except Exception as e:
+            print("Fehler:", e)
+        time.sleep(delay)
 
 
 def send_raw_command(nuc: NucleoUART, hex_cmd: str, timeout: float = 1.0):
@@ -187,29 +174,13 @@ def send_raw_command(nuc: NucleoUART, hex_cmd: str, timeout: float = 1.0):
     else:
         print("[keine Antwort]")
 
-def test_all(nuc: NucleoUART):
-    for frame in TEST_FRAMES:
-        print(f"\n>>> TX: {frame}")
-        send_raw_command(nuc, frame)
-
-def demo_api(nuc: NucleoUART):
-    print("\n--- High-Level API Demo ---")
-    nuc.set_timer(1, 50000)
-    print("T1 READBACK:", nuc.readback(1))
-    nuc.start_timer(1)
-    time.sleep(0.5)
-    nuc.stop_timer(1)
-    print("T1 READBACK:", nuc.readback(1))
 
 # -------- Main --------
 if __name__ == "__main__":
-    PORT = "/dev/tty.usbmodem11103"  # anpassen!
+    PORT = "/dev/tty.usbmodem1103"  # anpassen!
     nuc = NucleoUART(port=PORT, baudrate=115200, timeout=1.0)
     try:
-        for frame in raw_tests:
-            print(f"\n>>> TX: {frame[0]}")
-            send_raw_command(nuc, frame[1])
-            time.sleep(0.2)
+        run_api_tests(nuc)
     finally:
         nuc.close()
         print("\nVerbindung geschlossen.")
