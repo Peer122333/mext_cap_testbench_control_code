@@ -2,6 +2,7 @@ import tkinter as tk                # TKinter-Basis (Widgets, Fenster)
 from tkinter import ttk, messagebox # Themed Widgets, Messageboxen
 import threading                    # für Threads, hier genutzt für nicht-blockierende UI
 import time 
+import queue                        # für Thread-Kommunikation (RX-Monitor)
 
 
 
@@ -19,6 +20,10 @@ class App:
         self.nuc = None                         # Platzhalter für NucleoUART-Instanz
         self._build_ui()                        # UI aufbauen
         self._set_connected(False)              # Initialer Verbindungsstatus
+
+        # --- Serial Monitor (RX) ---
+        self._rx_q = queue.Queue()          # Queue für empfangene Daten
+        self._reader_stop = True               # Flag zum Stoppen des Lesethreads
 
     def _build_ui(self):
         pad = {"padx": 6, "pady": 4}
@@ -109,6 +114,27 @@ class App:
         frm_log.rowconfigure(0, weight=1)
         frm_log.columnconfigure(0, weight=1)
 
+
+        # --- Serial Monitor (RX) ---
+        frm_mon = ttk.LabelFrame(self.root, text="Serial Monitor (RX)")
+        frm_mon.grid(row=5, column=0, sticky="nsew", **pad)
+
+        self.txt_mon = tk.Text(frm_mon, height=10, width=90)
+        self.txt_mon.grid(row=0, column=0, sticky="nsew")
+        self.txt_mon.configure(state="disabled")
+        scroll_mon = ttk.Scrollbar(frm_mon, command=self.txt_mon.yview)
+        scroll_mon.grid(row=0, column=1, sticky="ns")
+        self.txt_mon["yscrollcommand"] = scroll_mon.set
+
+        frm_mon.rowconfigure(0, weight=1)
+        frm_mon.columnconfigure(0, weight=1)
+        self.root.rowconfigure(5, weight=1)
+
+        # Clear-Button fürs Leeren beider Fenster
+        btn_clear = ttk.Button(frm_log, text="Clear All", command=self.clear_logs)
+        btn_clear.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(4,0))
+
+
         self.refresh_ports()
 
     # Helpers, Connect/Disconnect und Actions bleiben unverändert …
@@ -145,11 +171,17 @@ class App:
             self.nuc = NucleoUART(port=port, baudrate=baud, timeout=1.0) # Verbindung aufbauen
             self._set_connected(True)                                    # UI anpassen
             self.log(f"[OK] Verbunden mit {port} @ {baud} Baud")         # Log-Eintrag
+            # RX-Monitor starten
+            self._reader_stop = False
+            threading.Thread(target=self._serial_monitor_reader, daemon=True).start()
+            self.root.after(50, self._drain_monitor_queue)
+
         except Exception as e:             # Verbindungsfehler abfangen         
             messagebox.showerror("Verbindung fehlgeschlagen", str(e))   # Fehlermeldung
             self.log(f"[ERR] {e}")                                      # Log-Eintrag
 
     def disconnect(self):
+        self._reader_stop = True   # RX-Thread stoppen
         if self.nuc:    # Verbindung besteht
             try:
                 self.nuc.close() # serielle Schnittstelle schließen
@@ -217,6 +249,64 @@ class App:
             except Exception as e:
                 self.log(f"[ERR] READBACK T{timer}: {e}")
         self._in_thread(work)
+
+
+    # --- Serial Monitor (RX) ---
+    def mon(self, msg: str):
+        """Schreibt eine Zeile in den RX-Monitor."""
+        self.txt_mon.configure(state="normal")
+        self.txt_mon.insert("end", msg + "\n")
+        self.txt_mon.see("end")
+        self.txt_mon.configure(state="disabled")
+
+    def _drain_monitor_queue(self):
+        """holt periodisch RX-Zeilen aus der Queue und zeigt sie im Monitor an"""
+        try:
+            while True:
+                line = self._rx_q.get_nowait()
+                self.mon(line)
+        except queue.Empty:
+            pass
+        self.root.after(50, self._drain_monitor_queue)  # alle 50ms erneut
+
+    def _serial_monitor_reader(self):
+        ser = self.nuc.ser if (self.nuc and hasattr(self.nuc, "ser")) else None
+        if not ser:
+            return
+
+        buf = bytearray()
+        while not self._reader_stop and ser and ser.is_open:
+            try:
+                n = ser.in_waiting
+                if n:
+                    chunk = ser.read(n)
+                    if not chunk:
+                        continue
+                    buf.extend(chunk)
+
+                    # so lange Zeilenende gefunden wird -> eine Zeile extrahieren
+                    while b"\n" in buf:
+                        line, _, buf = buf.partition(b"\n")
+                        text = line.decode(errors="replace").strip()
+                        if text:
+                            self._rx_q.put(text)
+                else:
+                    time.sleep(0.01)
+            except Exception as e:
+                self._rx_q.put(f"[RX-ERR] {e}")
+                break
+
+ 
+    def clear_logs(self):
+        """Leert Log- und RX-Monitor-Fenster."""
+        self.txt.configure(state="normal")
+        self.txt.delete("1.0", "end")
+        self.txt.configure(state="disabled")
+
+        self.txt_mon.configure(state="normal")
+        self.txt_mon.delete("1.0", "end")
+        self.txt_mon.configure(state="disabled")
+
 
 if __name__ == "__main__":
     root = tk.Tk()
