@@ -61,7 +61,7 @@ def _u16_to_lsb_msb(val: int) -> tuple[int, int]:
         (MSB, LSB)
     """
     v = int(val) & 0xFFFF
-    return (v >> 8) & 0xFF, v & 0xFF
+    return v & 0xFF, (v >> 8) & 0xFF # LSB, MSB
 
 def _lsb_msb_to_u16(lsb: int, msb: int) -> int:
     """Wandelt MSB/LSB in einen 16-Bit-Wert um.
@@ -98,19 +98,65 @@ class NucleoUART:
             write_timeout=timeout,          # Schreib-Timeout   
         )
 
+    # Kontextmanager, damit 'with NucleoUART(...) as nuc:' möglich ist
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc, tb): self.close()
+
     # -------- low level --------
     def _build_packet(self, cmd: int, value: int = 0, flags: int = 0) -> bytes:
-        lsb, msb = _u16_to_lsb_msb(value)
-        return bytes([PREAMBLE, cmd, lsb, msb, flags & 0xFF])
+        """Setzt den 5-Byte-Frame zusammen.
+
+        Parameters
+        ----------
+        cmd : int
+            Gebener Befehlscode (z.B. 0x10 für SET T1)
+        value : int, optional
+            Gegebener Wert, zB Pulsdauer bei SET Timer oder Anzahl der Pulse bei START , by default 0
+        flags : int, optional
+            Zur Erweiterung eingebaut, by default 0
+
+        Returns
+        -------
+        bytes
+            Der 5-Byte-Frame
+        """
+        lsb, msb = _u16_to_lsb_msb(value)                       # LSB, MSB aus Wert
+        return bytes([PREAMBLE, cmd, lsb, msb, flags & 0xFF])   # Frame zusammenbauen
 
     def _write_packet(self, pkt: bytes) -> None:
-        if len(pkt) != FRAME_SIZE or pkt[0] != PREAMBLE:
+        """ Schreibt einen 5-Byte-Frame auf die serielle Schnittstelle.
+
+        Parameters
+        ----------
+        pkt : bytes
+            Der 5-Byte-Frame
+
+        Raises
+        ------
+        ValueError
+            Wenn der Frame ungültig ist.
+        """
+        if len(pkt) != FRAME_SIZE or pkt[0] != PREAMBLE:  # Check ob Frame gültig ist
             raise ValueError("invalid packet")
-        self.ser.reset_output_buffer()
-        self.ser.write(pkt)
-        self.ser.flush()
+        self.ser.reset_output_buffer()  # Output-Puffer leeren
+        self.ser.write(pkt)             # Frame schreiben
+        self.ser.flush()                # Schreib-Buffer leeren (blockierend)
 
     def _read_packet(self) -> bytes:
+        """ Liest einen 5-Byte-Frame von der seriellen Schnittstelle.
+
+        Returns
+        -------
+        bytes
+            Der 5-Byte-Frame
+
+        Raises
+        ------
+        TimeoutError
+            Wenn ein Lese-Timeout auftritt.
+        TimeoutError
+            Wenn der Frame unvollständig ist.
+        """
         # Resync auf PREAMBLE, dann restliche 4 Bytes lesen
         while True:
             b = self.ser.read(1)
@@ -124,7 +170,18 @@ class NucleoUART:
         return b + rest
 
     def drain_text(self, timeout: float = 0.5) -> str:
-        """Liest ASCII-Logs (printf) der FW, falls vorhanden."""
+        """ Liest Textdaten von der seriellen Schnittstelle ein.
+
+        Parameters
+        ----------
+        timeout : float, optional
+            Maximale Wartezeit in Sekunden, by default 0.5
+
+        Returns
+        -------
+        str
+            Eingelesene Textdaten
+        """
         end = time.time() + timeout
         buf = bytearray()
         while time.time() < end:
@@ -137,27 +194,31 @@ class NucleoUART:
 
     # ---------- High-Level API ----------
     def set_timer(self, timer: int, period: int) -> None:
-        """
-        SET für Timer:
-          - T1: period in µs
-          - T2: period in ms
-        Flags werden pauschal 0 gesendet (wie gewünscht).
+        """ SET Timer (1 oder 2) mit Periode (in µs für T1, ms für T2).
+
+        Parameters
+        ----------
+        timer : int
+            Timer-Nummer (1 oder 2)
+        period : int
+            Periode in µs (T1) oder ms (T2)
+                - Timer 1 (T1): Zeitraum von 10 µs bis 1000 µs
+                - Timer 2 (T2): Zeitraum von 1 ms bis 10.000 ms (10 s)
+            
         """
         cmd = _code_for_timer(CmdBase.SET, timer)
         self._write_packet(self._build_packet(cmd, value=period, flags=0))
 
     def start_sequence(self, pulse_count: int, timer_for_cmd: int = 1) -> None:
-        """
-        START Sequenz (global).
-        - pulse_count = 0 → endlos bis STOP
+        """ START Sequenz (global).
+        - pulse_count = 0 → endlos bis STOP; pulse_count > 0 → Anzahl Pulse
         - timer_for_cmd setzt nur das LSB des CMD (0x20/0x21); FW-seitig egal
         """
         cmd = _code_for_timer(CmdBase.START, timer_for_cmd)
         self._write_packet(self._build_packet(cmd, value=pulse_count, flags=0))
 
     def stop_timer(self, *, hard: bool = False, timer_for_cmd: int = 1) -> None:
-        """
-        STOP Sequenz:
+        """ STOP Sequenz:
           - flags = 0 → Soft
           - flags = 1 → Hard   (ggf. Mapping an FW anpassen)
         """
@@ -166,8 +227,7 @@ class NucleoUART:
         self._write_packet(self._build_packet(cmd, value=0, flags=flags))
 
     def readback(self, timer: int) -> int:
-        """
-        READBACK liefert einen 16-Bit-Wert:
+        """ READBACK liefert einen 16-Bit-Wert:
           - T1: µs
           - T2: ms
         Ablauf: Befehl senden → Binär-Frame (FF 40/41 …) einlesen → Wert zurückgeben.
@@ -175,14 +235,20 @@ class NucleoUART:
         cmd = _code_for_timer(CmdBase.READBACK, timer)
         self._write_packet(self._build_packet(cmd, value=0, flags=0))
 
-        pkt = self._read_packet()
-        if pkt[1] != cmd:
-            raise ValueError(f"unexpected response: got 0x{pkt[1]:02X}")
-        value = _lsb_msb_to_u16(pkt[2], pkt[3])
-        return value
+        pkt = self._read_packet()   # Antwort einlesen
+        if pkt[1] != cmd:           # Check ob Antwort zum Kommando passt
+            raise ValueError(f"unexpected response: got 0x{pkt[1]:02X}") # unerwarteter Befehlscode
+        value = _lsb_msb_to_u16(pkt[2], pkt[3])     # LSB/MSB in 16-Bit-Wert umwandeln
+        flags = pkt[4] & 0xFF                       # Flags extrahieren (derzeit ungenutzt)
+        return value, flags # Wert zurückgeben
 
     def close(self) -> None:
-        self.ser.close()
+        """ Schließt die serielle Schnittstelle. """
+        if self.ser.is_open and self.ser:
+            self.ser.close()        
+
+
+
 
 
 

@@ -1,22 +1,24 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
-import threading
-import time
+import tkinter as tk                # TKinter-Basis (Widgets, Fenster)
+from tkinter import ttk, messagebox # Themed Widgets, Messageboxen
+import threading                    # für Threads, hier genutzt für nicht-blockierende UI
+import time 
+
+
 
 try:
-    from serial.tools import list_ports
+    from serial.tools import list_ports # für Port-Auswahl in GUI
 except Exception:
-    list_ports = None
+    list_ports = None # fallback
 
-from nucleo_uart import NucleoUART
+from nucleo_uart import NucleoUART # Import der NucleoUART-Klasse
 
 class App:
     def __init__(self, root):
-        self.root = root
-        self.root.title("STM32 UART Control")
-        self.nuc = None
-        self._build_ui()
-        self._set_connected(False)
+        self.root = root                        # Referenz auf das Hauptfenster
+        self.root.title("STM32 UART Control")   # Fenstertitel
+        self.nuc = None                         # Platzhalter für NucleoUART-Instanz
+        self._build_ui()                        # UI aufbauen
+        self._set_connected(False)              # Initialer Verbindungsstatus
 
     def _build_ui(self):
         pad = {"padx": 6, "pady": 4}
@@ -111,64 +113,72 @@ class App:
 
     # Helpers, Connect/Disconnect und Actions bleiben unverändert …
     def _set_connected(self, ok: bool):
-        self.btn_connect.configure(state=("disabled" if ok else "normal"))
-        self.btn_disconnect.configure(state=("normal" if ok else "disabled"))
-        state = "normal" if ok else "disabled"
+        self.btn_connect.configure(state=("disabled" if ok else "normal"))      # Verbinden deaktivieren bei Verbindung
+        self.btn_disconnect.configure(state=("normal" if ok else "disabled"))   # Trennen aktivieren bei Verbindung
+        state = "normal" if ok else "disabled"                                  # Buttons aktivieren/deaktivieren           
         for w in [self.btn_set, self.btn_start, self.btn_stop, self.btn_rb_t1, self.btn_rb_t2]:
-            w.configure(state=state)
+            w.configure(state=state)                                            # alle Buttons aktivieren/deaktivieren
 
     def log(self, msg: str):
-        self.txt.configure(state="normal")
-        self.txt.insert("end", msg + "\n")
-        self.txt.see("end")
-        self.txt.configure(state="disabled")
+        self.txt.configure(state="normal")      # Log-Textfeld beschreibbar machen
+        self.txt.insert("end", msg + "\n")      # Nachricht einfügen
+        self.txt.see("end")                     # zum Ende scrollen
+        self.txt.configure(state="disabled")    # Log-Textfeld wieder schreibgeschützt machen
 
     def refresh_ports(self):
-        ports = []
+        ports = []                              # Liste der verfügbaren Ports
         if list_ports:
-            ports = [p.device for p in list_ports.comports()]
+            ports = [p.device for p in list_ports.comports()]   # verfügbare Ports abfragen
         if not ports:
-            ports = ["/dev/tty.usbmodem1103", "/dev/tty.usbserial", "/dev/cu.usbmodem", "/dev/cu.usbserial"]
+            ports = ["/dev/tty.usbmodem1103", "/dev/tty.usbserial", "/dev/cu.usbmodem", "/dev/cu.usbserial"] # Fallback
         self.cmb_port["values"] = ports
         if ports and not self.cmb_port.get():
-            self.cmb_port.set(ports[0])
+            self.cmb_port.set(ports[0]) # ersten Port auswählen
 
     def connect(self):
-        port = self.cmb_port.get().strip()
-        baud = int(self.cmb_baud.get().strip())
-        if not port:
-            messagebox.showwarning("Hinweis", "Bitte zuerst einen Port auswählen.")
+        port = self.cmb_port.get().strip()      # ausgewählten Port holen
+        baud = int(self.cmb_baud.get().strip()) # ausgewählte Baudrate holen
+        if not port:                            # kein Port ausgewählt
+            messagebox.showwarning("Hinweis", "Bitte zuerst einen Port auswählen.") # Warnung
             return
         try:
-            self.nuc = NucleoUART(port=port, baudrate=baud, timeout=1.0)
-            self._set_connected(True)
-            self.log(f"[OK] Verbunden mit {port} @ {baud} Baud")
-        except Exception as e:
-            messagebox.showerror("Verbindung fehlgeschlagen", str(e))
-            self.log(f"[ERR] {e}")
+            self.nuc = NucleoUART(port=port, baudrate=baud, timeout=1.0) # Verbindung aufbauen
+            self._set_connected(True)                                    # UI anpassen
+            self.log(f"[OK] Verbunden mit {port} @ {baud} Baud")         # Log-Eintrag
+        except Exception as e:             # Verbindungsfehler abfangen         
+            messagebox.showerror("Verbindung fehlgeschlagen", str(e))   # Fehlermeldung
+            self.log(f"[ERR] {e}")                                      # Log-Eintrag
 
     def disconnect(self):
-        if self.nuc:
+        if self.nuc:    # Verbindung besteht
             try:
-                self.nuc.close()
+                self.nuc.close() # serielle Schnittstelle schließen
             except Exception:
                 pass
-            self.nuc = None
-        self._set_connected(False)
-        self.log("[i] Verbindung getrennt")
+            self.nuc = None     # Referenz auf NucleoUART-Instanz entfernen
+        self._set_connected(False) # UI zurücksetzen
+        self.log("[i] Verbindung getrennt") # Log-Eintrag
 
-    def _in_thread(self, target):
-        threading.Thread(target=target, daemon=True).start()
+    def _in_thread(self, target):                             # Hilfsmethode für nicht-blockierende UI
+        threading.Thread(target=target, daemon=True).start() # Daemon-Thread starten
+        # ausführlichere Erläuterung für _in_thread:
+        # - threading.Thread: Erstellt einen neuen Thread
+        # - target=target: Die Funktion, die im neuen Thread ausgeführt wird
+        # - daemon=True: Der Thread wird als Daemon-Thread gestartet, d.h.
+        #   er beendet sich automatisch, wenn das Hauptprogramm endet
+        # - .start(): Startet den Thread und führt die Ziel-Funktion aus
+        # Diese Methode wird genutzt, um lange laufende Operationen (z.B. serielle Kommunikation)
+        # in einem separaten Thread auszuführen, damit die GUI reaktionsfähig bleibt.
 
     def on_set(self):
         def work():
-            if not self.nuc: return
-            try:
-                timer = self.timer_var.get()
-                period = int(self.ent_period.get())
-                self.log(f"> SET T{timer} period={period} (flags=0)")
-                self.nuc.set_timer(timer, period)  # flags intern 0
-            except Exception as e:
+            if not self.nuc: return                                     # keine Verbindung
+            try:                                                        
+                timer = self.timer_var.get()                            # ausgewählten Timer holen           
+                period = int(self.ent_period.get())                     # Periode holen        
+                self.log(f"> SET T{timer} period={period} (flags=0)")   # Log-Eintrag
+                self.nuc.set_timer(timer, period)  # flags intern 0 gesetzt
+            except Exception as e:  
                 self.log(f"[ERR] SET: {e}")
         self._in_thread(work)
 
@@ -176,9 +186,9 @@ class App:
         def work():
             if not self.nuc: return
             try:
-                pulses = int(self.ent_pulses.get())
-                self.log(f"> START sequence pulse_count={pulses}")
-                self.nuc.start_sequence(pulses)
+                pulses = int(self.ent_pulses.get())                 # Pulse-Count holen
+                self.log(f"> START sequence pulse_count={pulses}")  # Log-Eintrag
+                self.nuc.start_sequence(pulses)                     # START senden
             except Exception as e:
                 self.log(f"[ERR] START: {e}")
         self._in_thread(work)
@@ -188,9 +198,9 @@ class App:
             if not self.nuc:
                 return
             try:
-                mode = self.stop_mode.get()
-                hard = (mode == "Hard")
-                self.log(f"> STOP ({mode})")
+                mode = self.stop_mode.get()                     # Stop-Mode holen
+                hard = (mode == "Hard")                         # Hard-Flag setzen
+                self.log(f"> STOP ({mode})")                    # Log-Eintrag
                 self.nuc.stop_timer(hard=hard, timer_for_cmd=1)  # 0x30/0x31
             except Exception as e:
                 self.log(f"[ERR] STOP: {e}")
@@ -203,7 +213,7 @@ class App:
             try:
                 val = self.nuc.readback(timer)
                 unit = "µs" if timer == 1 else "ms"
-                self.log(f"< READBACK T{timer}: {val} {unit}")
+                self.log(f"< READBACK T{timer}: {val} {unit}, flags=0x{0:02X}")
             except Exception as e:
                 self.log(f"[ERR] READBACK T{timer}: {e}")
         self._in_thread(work)
