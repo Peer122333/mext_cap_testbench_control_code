@@ -1,1 +1,3 @@
 pyserial
+pillow>=10.0.0
+pyinstaller>=6.0.0   # nur wenn du ein ausführbares Programm bauen willst
