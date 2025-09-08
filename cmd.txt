@@ -1,7 +1,9 @@
 py -m PyInstaller ^
   --onefile ^
   --windowed ^
-  --name SD_Kopierer_Win ^
+  --name Tesetbench_Control_Windows ^
+  --hidden-import serial ^
+  --hidden-import serial.tools-list_ports ^
   --distpath dist\win ^
   --workpath build\win ^
   --specpath build\spec ^
