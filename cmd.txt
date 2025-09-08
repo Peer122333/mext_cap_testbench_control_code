@@ -1,0 +1,8 @@
+py -m PyInstaller ^
+  --onefile ^
+  --windowed ^
+  --name SD_Kopierer_Win ^
+  --distpath dist\win ^
+  --workpath build\win ^
+  --specpath build\spec ^
+  gui.py
