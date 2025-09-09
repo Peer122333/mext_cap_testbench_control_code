@@ -16,7 +16,7 @@ from picosdk.ps3000a import ps3000a as ps
 from picosdk.functions import assert_pico_ok
 
 # =================== CONTROL ===================
-RUN_NAME            = "Pulse_Test_30V_Source_30"  # Messlauf-Name (Ordner+Datei) Pulse_Test_30V_Source_1
+RUN_NAME            = "Pulse_Test_30V_Source_40"  # Messlauf-Name (Ordner+Datei) Pulse_Test_30V_Source_1
 AUTO_TRIG_MS        = 0            # Fallback-Trigger
 TRIG_LEVEL_V        = -0.2           # Trigger auf CH A (AC), in Volt
 
@@ -27,7 +27,7 @@ PRETRIG_RATIO       = 0.2            # 20% vor Trigger
 N_SAMPLES           = 400_000 + int(PRETRIG_RATIO * 400_000)   # Gesamtanzahl Samples
 
 # Anzahl Pulse in einer Session + Wartezeit zwischen Pulsen
-N_PULSES            = 2
+N_PULSES            = 10
 INTER_PULSE_DELAY_S = 0.0            # z.B. 0.01 für 10 ms Pause
 
 # Kanal A: Spannung (kleiner Bereich für höhere Auflösung)
@@ -246,6 +246,7 @@ def acquire_n_pulses(n_pulses=N_PULSES, inter_pulse_delay_s=INTER_PULSE_DELAY_S)
             i = i_v / ROGOWSKI_V_PER_A
 
             print(f'Spannung U (CH A): min={u.min():.3f} V  max={u.max():.3f} V')
+            print(f'Strom I (CH B): min={i.min():.3f} {i_unit}  max={i.max():.3f} {i_unit}')
             print(f"{k}")
 
             # An CSV anhängen (mit fixer pulse_id)

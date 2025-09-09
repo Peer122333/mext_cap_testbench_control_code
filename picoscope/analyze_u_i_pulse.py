@@ -14,11 +14,11 @@ import matplotlib.pyplot as plt
 
 # ===================== CONTROL =====================
 BASE_DIR     = r"C:\Users\Prüfstand\Documents\Control\mext_cap_testbench_control_code\picoscope"
-RUN_NAME     = "Pulse_Test_30V_Source_30"   # muss zum Messlauf passen (CSV + meta.json)
+RUN_NAME     = "Pulse_Test_30V_Source_40"   # muss zum Messlauf passen (CSV + meta.json)
 USE_LAST     = True            # True: neuesten pulse_id verwenden; False: PULSE_ID nutzen
 PULSE_ID     = 3               # nur wenn USE_LAST=False
 
-OVERLAY_IDS  = list(range(1,2))              # z.B. [1,2,5] -> zusätzliche Pulse überlagern
+OVERLAY_IDS  = list(range(1,9))              # z.B. [1,2,5] -> zusätzliche Pulse überlagern
 SHOW_FFT     = False           # FFT des Hauptpulses
 FIG_SIZE     = (13, 8)         # großes Fenster
 LINEWIDTH    = 1.1
