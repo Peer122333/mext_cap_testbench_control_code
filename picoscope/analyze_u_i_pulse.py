@@ -14,12 +14,12 @@ import matplotlib.pyplot as plt
 
 # ===================== CONTROL =====================
 BASE_DIR     = r"C:\Users\Prüfstand\Documents\Control\mext_cap_testbench_control_code\picoscope"
-RUN_NAME     = "TEST27"   # muss zum Messlauf passen (CSV + meta.json)
+RUN_NAME     = "Pulse_Test_30V_Source_30"   # muss zum Messlauf passen (CSV + meta.json)
 USE_LAST     = True            # True: neuesten pulse_id verwenden; False: PULSE_ID nutzen
 PULSE_ID     = 3               # nur wenn USE_LAST=False
 
-OVERLAY_IDS  = list(range(1,4))              # z.B. [1,2,5] -> zusätzliche Pulse überlagern
-SHOW_FFT     = True           # FFT des Hauptpulses
+OVERLAY_IDS  = list(range(1,2))              # z.B. [1,2,5] -> zusätzliche Pulse überlagern
+SHOW_FFT     = False           # FFT des Hauptpulses
 FIG_SIZE     = (13, 8)         # großes Fenster
 LINEWIDTH    = 1.1
 GRID_ALPHA   = 0.25
@@ -179,7 +179,7 @@ def analyze_pulse_csv():
     # Spannung
     ax_u.plot(t, u, linewidth=LINEWIDTH, label=f"U  (pulse {pid})")
     ax_u.set_ylabel("Spannung U [V]", fontsize=12)
-    ax_u.set_ylim((-4,4))
+    ax_u.set_ylim((-30,4))
     ax_u.set_title(f"{RUN_NAME} – Spannung & Strom (pulse_id={pid})", fontsize=15)
     ax_u.grid(True, alpha=GRID_ALPHA)
 
@@ -187,7 +187,7 @@ def analyze_pulse_csv():
     ax_i.plot(t, i, linewidth=LINEWIDTH, label=f"I  (pulse {pid})")
     ax_i.set_ylabel(f"Strom I [{i_unit}]", fontsize=12)
     ax_i.set_xlabel("Zeit t [s]", fontsize=12)
-    ax_i.set_ylim(-40,40)
+    ax_i.set_ylim(-120,120)
     ax_i.grid(True, alpha=GRID_ALPHA)
 
     # Overlays (optional)

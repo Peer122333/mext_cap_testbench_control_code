@@ -16,7 +16,7 @@ from picosdk.ps3000a import ps3000a as ps
 from picosdk.functions import assert_pico_ok
 
 # =================== CONTROL ===================
-RUN_NAME            = "TEST27"  # Messlauf-Name (Ordner+Datei)
+RUN_NAME            = "Pulse_Test_30V_Source_30"  # Messlauf-Name (Ordner+Datei) Pulse_Test_30V_Source_1
 AUTO_TRIG_MS        = 0            # Fallback-Trigger
 TRIG_LEVEL_V        = -0.2           # Trigger auf CH A (AC), in Volt
 
@@ -27,13 +27,13 @@ PRETRIG_RATIO       = 0.2            # 20% vor Trigger
 N_SAMPLES           = 400_000 + int(PRETRIG_RATIO * 400_000)   # Gesamtanzahl Samples
 
 # Anzahl Pulse in einer Session + Wartezeit zwischen Pulsen
-N_PULSES            = 3
+N_PULSES            = 2
 INTER_PULSE_DELAY_S = 0.0            # z.B. 0.01 für 10 ms Pause
 
 # Kanal A: Spannung (kleiner Bereich für höhere Auflösung)
 CH_A                = ps.PS3000A_CHANNEL["PS3000A_CHANNEL_A"]
 COUPLING_A          = ps.PS3000A_COUPLING["PS3000A_AC"]
-RANGE_A             = ps.PS3000A_RANGE["PS3000A_500MV"]   # ±2 V
+RANGE_A             = ps.PS3000A_RANGE["PS3000A_2V"]   # ±2 V
 
 # Kanal B: Rogowski (Strom)
 CH_B                = ps.PS3000A_CHANNEL["PS3000A_CHANNEL_B"]
@@ -213,6 +213,8 @@ def acquire_n_pulses(n_pulses=N_PULSES, inter_pulse_delay_s=INTER_PULSE_DELAY_S)
         # Start-pulse_id nur einmal ermitteln
         pulse_id = _next_pulse_id_scan()
 
+
+        time.sleep(10)
         # Schleife über Pulse
         for k in range(n_pulses):
             time_indisposed_ms = ct.c_int32(0)
