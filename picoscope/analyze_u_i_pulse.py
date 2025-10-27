@@ -13,8 +13,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # ===================== CONTROL =====================
-BASE_DIR     = r"C:\Users\Prüfstand\Documents\Control\mext_cap_testbench_control_code\picoscope"
-RUN_NAME     = "Pulse_Test_30V_Source_40"   # muss zum Messlauf passen (CSV + meta.json)
+BASE_DIR     = r"C:\Users\mext\Documents\02 Python Schnittstelle STM32 serielle Steuerung\mext_cap_testbench_control_code\picoscope"
+RUN_NAME     = "Pulse_Test_10V_Source_10"   # muss zum Messlauf passen (CSV + meta.json)
 USE_LAST     = True            # True: neuesten pulse_id verwenden; False: PULSE_ID nutzen
 PULSE_ID     = 3               # nur wenn USE_LAST=False
 

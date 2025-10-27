@@ -16,7 +16,7 @@ from picosdk.ps3000a import ps3000a as ps
 from picosdk.functions import assert_pico_ok
 
 # =================== CONTROL ===================
-RUN_NAME            = "Pulse_Test_30V_Source_40"  # Messlauf-Name (Ordner+Datei) Pulse_Test_30V_Source_1
+RUN_NAME            = "90V_DC_300A"  # Messlauf-Name (Ordner+Datei) Pulse_Test_30V_Source_1
 AUTO_TRIG_MS        = 0            # Fallback-Trigger
 TRIG_LEVEL_V        = -0.2           # Trigger auf CH A (AC), in Volt
 
@@ -27,25 +27,25 @@ PRETRIG_RATIO       = 0.2            # 20% vor Trigger
 N_SAMPLES           = 400_000 + int(PRETRIG_RATIO * 400_000)   # Gesamtanzahl Samples
 
 # Anzahl Pulse in einer Session + Wartezeit zwischen Pulsen
-N_PULSES            = 10
+N_PULSES            = 3
 INTER_PULSE_DELAY_S = 0.0            # z.B. 0.01 für 10 ms Pause
 
 # Kanal A: Spannung (kleiner Bereich für höhere Auflösung)
 CH_A                = ps.PS3000A_CHANNEL["PS3000A_CHANNEL_A"]
 COUPLING_A          = ps.PS3000A_COUPLING["PS3000A_AC"]
-RANGE_A             = ps.PS3000A_RANGE["PS3000A_2V"]   # ±2 V
+RANGE_A             = ps.PS3000A_RANGE["PS3000A_5V"]   # ±2 V
 
 # Kanal B: Rogowski (Strom)
 CH_B                = ps.PS3000A_CHANNEL["PS3000A_CHANNEL_B"]
 COUPLING_B          = ps.PS3000A_COUPLING["PS3000A_AC"]
-RANGE_B             = ps.PS3000A_RANGE["PS3000A_100MV"]   # anpassen
+RANGE_B             = ps.PS3000A_RANGE["PS3000A_10V"]   # anpassen
 
 # Optional: Volt -> Ampere (Integratorfaktor der Rogowski-Kette)
-ROGOWSKI_V_PER_A    = 1/1000          # z.B. 0.1 (V/A). None => CSV in Volt
+ROGOWSKI_V_PER_A    = 0.02          # z.B. 0.1 (V/A). None => CSV in Volt
 # ==================================================
 
 # Basisordner & Run-Verzeichnis
-BASE_DIR   = r"C:\Users\Prüfstand\Documents\Control\mext_cap_testbench_control_code\picoscope"
+BASE_DIR   = r"C:\Users\mext\Documents\02 Python Schnittstelle STM32 serielle Steuerung\mext_cap_testbench_control_code\picoscope"
 RUN_DIR    = os.path.join(BASE_DIR, "Runs", RUN_NAME)
 CSV_PATH   = os.path.join(RUN_DIR, f"{RUN_NAME}.csv")
 META_PATH  = os.path.join(RUN_DIR, f"{RUN_NAME}.meta.json")

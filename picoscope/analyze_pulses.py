@@ -13,13 +13,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # ===================== CONTROL =====================
-BASE_DIR     = r"C:\Users\Prüfstand\Documents\Control\mext_cap_testbench_control_code\picoscope"
-RUN_NAME     = "TEST11"   # muss zum Messlauf passen (CSV + meta.json)
+BASE_DIR     = r"C:\Users\mext\Documents\02 Python Schnittstelle STM32 serielle Steuerung\mext_cap_testbench_control_code\picoscope"
+RUN_NAME     = "90V_DC_300A"   # muss zum Messlauf passen (CSV + meta.json)
 USE_LAST     = True            # True: neuesten pulse_id verwenden; False: PULSE_ID nutzen
 PULSE_ID     = 3               # nur wenn USE_LAST=False
 
-OVERLAY_IDS  = [1,2,3,4,5]              # z.B. [1,2,5] -> zusätzliche Pulse überlagern
-SHOW_FFT     = True           # FFT des Hauptpulses
+OVERLAY_IDS  = [1,2,3]              # z.B. [1,2,5] -> zusätzliche Pulse überlagern
+SHOW_FFT     = False           # FFT des Hauptpulses
 FIG_SIZE     = (13, 8)         # großes Fenster
 LINEWIDTH    = 1.1
 GRID_ALPHA   = 0.25
@@ -27,6 +27,7 @@ GRID_ALPHA   = 0.25
 
 # Pfade
 RUN_DIR   = os.path.join(BASE_DIR, "Runs", RUN_NAME)
+print(RUN_DIR)
 CSV_PATH  = os.path.join(RUN_DIR, f"{RUN_NAME}.csv")
 META_PATH = os.path.join(RUN_DIR, f"{RUN_NAME}.meta.json")
 
