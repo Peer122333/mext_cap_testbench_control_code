@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 # ===================== CONTROL =====================
 BASE_DIR     = r"C:\Users\mext\Documents\02 Python Schnittstelle STM32 serielle Steuerung\mext_cap_testbench_control_code\picoscope"
-RUN_NAME     = "90V_DC_300A"   # muss zum Messlauf passen (CSV + meta.json)
+RUN_NAME     = "90V_DC_300A-3"   # muss zum Messlauf passen (CSV + meta.json)
 USE_LAST     = True            # True: neuesten pulse_id verwenden; False: PULSE_ID nutzen
 PULSE_ID     = 3               # nur wenn USE_LAST=False
 

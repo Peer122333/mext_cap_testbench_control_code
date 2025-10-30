@@ -16,7 +16,7 @@ from picosdk.ps3000a import ps3000a as ps
 from picosdk.functions import assert_pico_ok
 
 # =================== CONTROL ===================
-RUN_NAME            = "90V_DC_300A"  # Messlauf-Name (Ordner+Datei) Pulse_Test_30V_Source_1
+RUN_NAME            = "90V_DC_300A-3"  # Messlauf-Name (Ordner+Datei) Pulse_Test_30V_Source_1
 AUTO_TRIG_MS        = 0            # Fallback-Trigger
 TRIG_LEVEL_V        = -0.2           # Trigger auf CH A (AC), in Volt
 
@@ -33,7 +33,7 @@ INTER_PULSE_DELAY_S = 0.0            # z.B. 0.01 für 10 ms Pause
 # Kanal A: Spannung (kleiner Bereich für höhere Auflösung)
 CH_A                = ps.PS3000A_CHANNEL["PS3000A_CHANNEL_A"]
 COUPLING_A          = ps.PS3000A_COUPLING["PS3000A_AC"]
-RANGE_A             = ps.PS3000A_RANGE["PS3000A_5V"]   # ±2 V
+RANGE_A             = ps.PS3000A_RANGE["PS3000A_20V"]   # ±2 V
 
 # Kanal B: Rogowski (Strom)
 CH_B                = ps.PS3000A_CHANNEL["PS3000A_CHANNEL_B"]
@@ -42,6 +42,7 @@ RANGE_B             = ps.PS3000A_RANGE["PS3000A_10V"]   # anpassen
 
 # Optional: Volt -> Ampere (Integratorfaktor der Rogowski-Kette)
 ROGOWSKI_V_PER_A    = 0.02          # z.B. 0.1 (V/A). None => CSV in Volt
+U_PROBE_ATTENUATION = 50.0 # 1:10 Tastkopf
 # ==================================================
 
 # Basisordner & Run-Verzeichnis
@@ -240,7 +241,7 @@ def acquire_n_pulses(n_pulses=N_PULSES, inter_pulse_delay_s=INTER_PULSE_DELAY_S)
             adcA = np.frombuffer(bufA, dtype=np.int16, count=n.value).astype(np.float64, copy=False)
             adcB = np.frombuffer(bufB, dtype=np.int16, count=n.value).astype(np.float64, copy=False)
             
-            U_PROBE_ATTENUATION = 10.0 # 1:10 Tastkopf
+            
             u = adcA * (vfs_a / max_adc.value) * U_PROBE_ATTENUATION
             i_v = adcB * (vfs_b / max_adc.value)
             i = i_v / ROGOWSKI_V_PER_A

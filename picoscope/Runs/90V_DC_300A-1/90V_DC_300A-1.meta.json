@@ -1,0 +1,19 @@
+{
+  "run_name": "90V_DC_300A-1",
+  "fs": 20833333.333333332,
+  "dt_s": 4.8000000000000006e-08,
+  "pretrigger_samples": 96000,
+  "posttrigger_samples": 384000,
+  "ch_a": {
+    "coupling": "AC",
+    "v_range": 5.0
+  },
+  "ch_b": {
+    "coupling": "AC",
+    "v_range": 10.0,
+    "rogowski_v_per_a": 0.02
+  },
+  "trigger_level_v": -0.2,
+  "csv_path": "C:\\Users\\mext\\Documents\\02 Python Schnittstelle STM32 serielle Steuerung\\mext_cap_testbench_control_code\\picoscope\\Runs\\90V_DC_300A-1\\90V_DC_300A-1.csv",
+  "created_or_updated": "2025-10-27T16:11:01.738470"
+}
