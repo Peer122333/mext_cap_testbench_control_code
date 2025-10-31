@@ -9,11 +9,11 @@ PS3000A Acquisition – U/I synchron, Append-CSV pro Messlauf (Mehrfach-Pulse)
 import os
 import time
 import json
-import ctypes as ct
-import numpy as np
+import ctypes as ct # C-Typen für Picoscope SDK
+import numpy as np  
 from datetime import datetime
-from picosdk.ps3000a import ps3000a as ps
-from picosdk.functions import assert_pico_ok
+from picosdk.ps3000a import ps3000a as ps    # Picoscope PS3000A SDK 
+from picosdk.functions import assert_pico_ok # Fehlerprüfung SDK-Aufrufe
 
 # =================== CONTROL ===================
 RUN_NAME            = "90V_DC_300A-3"  # Messlauf-Name (Ordner+Datei) Pulse_Test_30V_Source_1
@@ -33,7 +33,7 @@ INTER_PULSE_DELAY_S = 0.0            # z.B. 0.01 für 10 ms Pause
 # Kanal A: Spannung (kleiner Bereich für höhere Auflösung)
 CH_A                = ps.PS3000A_CHANNEL["PS3000A_CHANNEL_A"]
 COUPLING_A          = ps.PS3000A_COUPLING["PS3000A_AC"]
-RANGE_A             = ps.PS3000A_RANGE["PS3000A_20V"]   # ±2 V
+RANGE_A             = ps.PS3000A_RANGE["PS3000A_50MV"]   # ±2 V -> eigentlich sollte beim Spannungsmessung hier bei 1:100 kleinere Werte besser klappen
 
 # Kanal B: Rogowski (Strom)
 CH_B                = ps.PS3000A_CHANNEL["PS3000A_CHANNEL_B"]
@@ -47,12 +47,14 @@ U_PROBE_ATTENUATION = 50.0 # 1:10 Tastkopf
 
 # Basisordner & Run-Verzeichnis
 BASE_DIR   = r"C:\Users\mext\Documents\02 Python Schnittstelle STM32 serielle Steuerung\mext_cap_testbench_control_code\picoscope"
-RUN_DIR    = os.path.join(BASE_DIR, "Runs", RUN_NAME)
+RUN_DIR    = os.path.join(BASE_DIR, "Runs", RUN_NAME) 
 CSV_PATH   = os.path.join(RUN_DIR, f"{RUN_NAME}.csv")
 META_PATH  = os.path.join(RUN_DIR, f"{RUN_NAME}.meta.json")
 os.makedirs(RUN_DIR, exist_ok=True)
 
+# ---------- SDK-Helfer ----------
 def range_fullscale_volts(v_range_enum):
+    """Gibt den vollen Messbereich in Volt für den gegebenen Bereichs-Enum zurück."""
     table = {
         ps.PS3000A_RANGE["PS3000A_20MV"]: 0.02,
         ps.PS3000A_RANGE["PS3000A_50MV"]: 0.05,
@@ -69,11 +71,44 @@ def range_fullscale_volts(v_range_enum):
     return table[v_range_enum]
 
 def pick_timebase(handle, target_fs, n_samples):
+    """Wählt einen geeigneten Timebase-Index für das PS3000A-Gerät.
+
+    Die Funktion probiert mehrere Timebase-Indizes aus und
+    bestimmt für jeden das vom Treiber zurückgegebene Zeitintervall pro
+    Sample. Es wird die Timebase gewählt, deren effektive Abtastrate am
+    nächsten an ``target_fs`` liegt und für die der Treiber einen gültigen
+    Status zurückgibt.
+
+    Parameters
+    ----------
+    handle : ctypes.c_int16 oder ähnliches
+        Gerät-Handle wie von :func:`ps.ps3000aOpenUnit` zurückgegeben.
+    target_fs : float
+        Gewünschte Abtastrate in Hertz (z. B. ``20e6`` für 20 MHz).
+    n_samples : int
+        Gewünschte Anzahl Samples im Block (inkl. Pre/Post-Trigger).
+
+    Returns
+    -------
+    tuple
+        Ein Tripel ``(timebase_index, dt_seconds, fs_hz)``:
+        - ``timebase_index`` (int): Index, der später an ``ps3000aRunBlock``
+          übergeben werden soll.
+        - ``dt_seconds`` (float): Zeitabstand zwischen zwei Samples in
+          Sekunden (``time_interval_ns * 1e-9``).
+        - ``fs_hz`` (float): Effektive Abtastfrequenz in Hertz (``1/dt_seconds``).
+
+    Raises
+    ------
+    RuntimeError
+        Falls keine gültige Timebase gefunden werden konnte (z. B. wenn der
+        Treiber alle abgefragten Indizes als ungültig meldet).
+    """
     best = None
     for tb in range(1, 50000):
-        time_interval_ns = ct.c_float()
-        max_samples = ct.c_int32()
-        status = ps.ps3000aGetTimebase2(
+        time_interval_ns = ct.c_float()  # Zeitintervall pro Sample in ns
+        max_samples = ct.c_int32()       # Maximal mögliche Samples bei dieser Timebase
+        status = ps.ps3000aGetTimebase2( # Versuch mit Timebase 'tb'
             handle, tb, n_samples, ct.byref(time_interval_ns), 0, ct.byref(max_samples), 0
         )
         if status == 0:
@@ -152,7 +187,7 @@ def acquire_n_pulses(n_pulses=N_PULSES, inter_pulse_delay_s=INTER_PULSE_DELAY_S)
     Gerät wird nur einmal geöffnet/konfiguriert.
     """
     # Gerät öffnen
-    handle = ct.c_int16()
+    handle = ct.c_int16() # Gerät-Handle
     status = ps.ps3000aOpenUnit(ct.byref(handle), None)
     try:
         assert_pico_ok(status)
@@ -169,11 +204,11 @@ def acquire_n_pulses(n_pulses=N_PULSES, inter_pulse_delay_s=INTER_PULSE_DELAY_S)
         assert_pico_ok(ps.ps3000aSetChannel(handle, CH_B, 1, COUPLING_B, RANGE_B, 0.0))
 
         # Max-ADC
-        max_adc = ct.c_int16()
+        max_adc = ct.c_int16() 
         assert_pico_ok(ps.ps3000aMaximumValue(handle, ct.byref(max_adc)))
 
         # Timebase
-        timebase, dt, fs = pick_timebase(handle, TARGET_FS, N_SAMPLES)
+        timebase, dt, fs = pick_timebase(handle, TARGET_FS, N_SAMPLES) 
         print(f"[Info] Timebase={timebase}, dt={dt*1e9:.2f} ns, fs={fs/1e6:.2f} MS/s")
 
         # Trigger (CH A, Rising)
