@@ -16,7 +16,7 @@ from picosdk.ps3000a import ps3000a as ps    # Picoscope PS3000A SDK
 from picosdk.functions import assert_pico_ok # Fehlerprüfung SDK-Aufrufe
 
 # =================== CONTROL ===================
-RUN_NAME            = "90V_DC_300A-3"  # Messlauf-Name (Ordner+Datei) Pulse_Test_30V_Source_1
+RUN_NAME            = "Test_große_Quelle_3"  # Messlauf-Name (Ordner+Datei) Pulse_Test_30V_Source_1
 AUTO_TRIG_MS        = 0            # Fallback-Trigger
 TRIG_LEVEL_V        = -0.2           # Trigger auf CH A (AC), in Volt
 
@@ -33,15 +33,15 @@ INTER_PULSE_DELAY_S = 0.0            # z.B. 0.01 für 10 ms Pause
 # Kanal A: Spannung (kleiner Bereich für höhere Auflösung)
 CH_A                = ps.PS3000A_CHANNEL["PS3000A_CHANNEL_A"]
 COUPLING_A          = ps.PS3000A_COUPLING["PS3000A_AC"]
-RANGE_A             = ps.PS3000A_RANGE["PS3000A_50MV"]   # ±2 V -> eigentlich sollte beim Spannungsmessung hier bei 1:100 kleinere Werte besser klappen
+RANGE_A             = ps.PS3000A_RANGE["PS3000A_500MV"]   # ±2 V -> eigentlich sollte beim Spannungsmessung hier bei 1:100 kleinere Werte besser klappen
 
 # Kanal B: Rogowski (Strom)
 CH_B                = ps.PS3000A_CHANNEL["PS3000A_CHANNEL_B"]
 COUPLING_B          = ps.PS3000A_COUPLING["PS3000A_AC"]
-RANGE_B             = ps.PS3000A_RANGE["PS3000A_10V"]   # anpassen
+RANGE_B             = ps.PS3000A_RANGE["PS3000A_5V"]   # anpassen
 
 # Optional: Volt -> Ampere (Integratorfaktor der Rogowski-Kette)
-ROGOWSKI_V_PER_A    = 0.02          # z.B. 0.1 (V/A). None => CSV in Volt
+ROGOWSKI_V_PER_A    = 0.1          # z.B. 0.1 (V/A). None => CSV in Volt
 U_PROBE_ATTENUATION = 50.0 # 1:10 Tastkopf
 # ==================================================
 
@@ -241,7 +241,7 @@ def acquire_n_pulses(n_pulses=N_PULSES, inter_pulse_delay_s=INTER_PULSE_DELAY_S)
         write_meta_once(dict(
             run_name=RUN_NAME, fs=fs, dt_s=dt,
             pretrigger_samples=pre, posttrigger_samples=post,
-            ch_a=dict(coupling="AC", v_range=vfs_a),
+            ch_a=dict(coupling="AC", v_range=vfs_a*U_PROBE_ATTENUATION),
             ch_b=dict(coupling="AC", v_range=vfs_b, rogowski_v_per_a=ROGOWSKI_V_PER_A),
             trigger_level_v=TRIG_LEVEL_V,
         ))

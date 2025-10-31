@@ -1,0 +1,19 @@
+{
+  "run_name": "Test_gro\u00dfe_Quelle_3",
+  "fs": 20833333.333333332,
+  "dt_s": 4.8000000000000006e-08,
+  "pretrigger_samples": 96000,
+  "posttrigger_samples": 384000,
+  "ch_a": {
+    "coupling": "AC",
+    "v_range": 25.0
+  },
+  "ch_b": {
+    "coupling": "AC",
+    "v_range": 5.0,
+    "rogowski_v_per_a": 0.1
+  },
+  "trigger_level_v": -0.2,
+  "csv_path": "C:\\Users\\mext\\Documents\\02 Python Schnittstelle STM32 serielle Steuerung\\mext_cap_testbench_control_code\\picoscope\\Runs\\Test_gro\u00dfe_Quelle_3\\Test_gro\u00dfe_Quelle_3.csv",
+  "created_or_updated": "2025-10-31T14:46:52.594055"
+}
