@@ -14,11 +14,11 @@ import matplotlib.pyplot as plt
 
 # ===================== CONTROL =====================
 BASE_DIR     = r"C:\Users\mext\Documents\02 Python Schnittstelle STM32 serielle Steuerung\mext_cap_testbench_control_code\picoscope"
-RUN_NAME     = "Test_große_Quelle_3"   # muss zum Messlauf passen (CSV + meta.json)
+RUN_NAME     = "Puls_400V_1200A-BESTE"   # muss zum Messlauf passen (CSV + meta.json)
 USE_LAST     = True            # True: neuesten pulse_id verwenden; False: PULSE_ID nutzen
 PULSE_ID     = 3               # nur wenn USE_LAST=False
 
-OVERLAY_IDS  = [1,2,3]              # z.B. [1,2,5] -> zusätzliche Pulse überlagern
+OVERLAY_IDS  = [14,15,16]              # z.B. [1,2,5] -> zusätzliche Pulse überlagern
 SHOW_FFT     = False           # FFT des Hauptpulses
 FIG_SIZE     = (13, 8)         # großes Fenster
 LINEWIDTH    = 1.1

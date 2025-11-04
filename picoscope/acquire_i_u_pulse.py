@@ -16,7 +16,7 @@ from picosdk.ps3000a import ps3000a as ps    # Picoscope PS3000A SDK
 from picosdk.functions import assert_pico_ok # Fehlerprüfung SDK-Aufrufe
 
 # =================== CONTROL ===================
-RUN_NAME            = "Test_große_Quelle_3"  # Messlauf-Name (Ordner+Datei) Pulse_Test_30V_Source_1
+RUN_NAME            = "Puls_400V_1200A-BESTE"  # Messlauf-Name (Ordner+Datei) Pulse_Test_30V_Source_1
 AUTO_TRIG_MS        = 0            # Fallback-Trigger
 TRIG_LEVEL_V        = -0.2           # Trigger auf CH A (AC), in Volt
 
@@ -27,7 +27,7 @@ PRETRIG_RATIO       = 0.2            # 20% vor Trigger
 N_SAMPLES           = 400_000 + int(PRETRIG_RATIO * 400_000)   # Gesamtanzahl Samples
 
 # Anzahl Pulse in einer Session + Wartezeit zwischen Pulsen
-N_PULSES            = 3
+N_PULSES            = 30
 INTER_PULSE_DELAY_S = 0.0            # z.B. 0.01 für 10 ms Pause
 
 # Kanal A: Spannung (kleiner Bereich für höhere Auflösung)
@@ -38,11 +38,11 @@ RANGE_A             = ps.PS3000A_RANGE["PS3000A_500MV"]   # ±2 V -> eigentlich 
 # Kanal B: Rogowski (Strom)
 CH_B                = ps.PS3000A_CHANNEL["PS3000A_CHANNEL_B"]
 COUPLING_B          = ps.PS3000A_COUPLING["PS3000A_AC"]
-RANGE_B             = ps.PS3000A_RANGE["PS3000A_5V"]   # anpassen
+RANGE_B             = ps.PS3000A_RANGE["PS3000A_2V"]   # anpassen
 
 # Optional: Volt -> Ampere (Integratorfaktor der Rogowski-Kette)
-ROGOWSKI_V_PER_A    = 0.1          # z.B. 0.1 (V/A). None => CSV in Volt
-U_PROBE_ATTENUATION = 50.0 # 1:10 Tastkopf
+ROGOWSKI_V_PER_A    = 0.001          # z.B. 0.1 (V/A). None => CSV in Volt
+U_PROBE_ATTENUATION = 500.0         # z.B. 1:10 Tastkopf
 # ==================================================
 
 # Basisordner & Run-Verzeichnis
